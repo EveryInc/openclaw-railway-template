@@ -361,53 +361,43 @@ app.get("/setup/api/status", requireSetupAuth, async (_req, res) => {
   const channelsHelp = await runCmd(OPENCLAW_NODE, clawArgs(["channels", "add", "--help"]));
 
   // We reuse OpenClaw's own auth-choice grouping logic indirectly by hardcoding the same group defs.
-  // This is intentionally minimal; later we can parse the CLI help output to stay perfectly in sync.
+  // Only OpenAI and Anthropic API keys are enabled for now. OAuth flows are removed because they
+  // require browser interaction which doesn't work in this headless setup.
+  // Uncomment other providers as they are verified to work.
   const authGroups = [
-    { value: "openai", label: "OpenAI", hint: "Codex OAuth + API key", options: [
-      { value: "codex-cli", label: "OpenAI Codex OAuth (Codex CLI)" },
-      { value: "openai-codex", label: "OpenAI Codex (ChatGPT OAuth)" },
-      { value: "openai-api-key", label: "OpenAI API key" }
-    ]},
-    { value: "anthropic", label: "Anthropic", hint: "Claude Code CLI + API key", options: [
-      { value: "claude-cli", label: "Anthropic token (Claude Code CLI)" },
-      { value: "token", label: "Anthropic token (paste setup-token)" },
+    { value: "anthropic", label: "Anthropic", hint: "Claude API key", options: [
       { value: "apiKey", label: "Anthropic API key" }
     ]},
-    { value: "google", label: "Google", hint: "Gemini API key + OAuth", options: [
-      { value: "gemini-api-key", label: "Google Gemini API key" },
-      { value: "google-antigravity", label: "Google Antigravity OAuth" },
-      { value: "google-gemini-cli", label: "Google Gemini CLI OAuth" }
+    { value: "openai", label: "OpenAI", hint: "API key", options: [
+      { value: "openai-api-key", label: "OpenAI API key" }
     ]},
-    { value: "openrouter", label: "OpenRouter", hint: "API key", options: [
-      { value: "openrouter-api-key", label: "OpenRouter API key" }
-    ]},
-    { value: "ai-gateway", label: "Vercel AI Gateway", hint: "API key", options: [
-      { value: "ai-gateway-api-key", label: "Vercel AI Gateway API key" }
-    ]},
-    { value: "moonshot", label: "Moonshot AI", hint: "Kimi K2 + Kimi Code", options: [
-      { value: "moonshot-api-key", label: "Moonshot AI API key" },
-      { value: "kimi-code-api-key", label: "Kimi Code API key" }
-    ]},
-    { value: "zai", label: "Z.AI (GLM 4.7)", hint: "API key", options: [
-      { value: "zai-api-key", label: "Z.AI (GLM 4.7) API key" }
-    ]},
-    { value: "minimax", label: "MiniMax", hint: "M2.1 (recommended)", options: [
-      { value: "minimax-api", label: "MiniMax M2.1" },
-      { value: "minimax-api-lightning", label: "MiniMax M2.1 Lightning" }
-    ]},
-    { value: "qwen", label: "Qwen", hint: "OAuth", options: [
-      { value: "qwen-portal", label: "Qwen OAuth" }
-    ]},
-    { value: "copilot", label: "Copilot", hint: "GitHub + local proxy", options: [
-      { value: "github-copilot", label: "GitHub Copilot (GitHub device login)" },
-      { value: "copilot-proxy", label: "Copilot Proxy (local)" }
-    ]},
-    { value: "synthetic", label: "Synthetic", hint: "Anthropic-compatible (multi-model)", options: [
-      { value: "synthetic-api-key", label: "Synthetic API key" }
-    ]},
-    { value: "opencode-zen", label: "OpenCode Zen", hint: "API key", options: [
-      { value: "opencode-zen", label: "OpenCode Zen (multi-model proxy)" }
-    ]}
+    // Uncomment as verified:
+    // { value: "google", label: "Google", hint: "Gemini API key", options: [
+    //   { value: "gemini-api-key", label: "Google Gemini API key" }
+    // ]},
+    // { value: "openrouter", label: "OpenRouter", hint: "API key", options: [
+    //   { value: "openrouter-api-key", label: "OpenRouter API key" }
+    // ]},
+    // { value: "ai-gateway", label: "Vercel AI Gateway", hint: "API key", options: [
+    //   { value: "ai-gateway-api-key", label: "Vercel AI Gateway API key" }
+    // ]},
+    // { value: "moonshot", label: "Moonshot AI", hint: "Kimi K2 + Kimi Code", options: [
+    //   { value: "moonshot-api-key", label: "Moonshot AI API key" },
+    //   { value: "kimi-code-api-key", label: "Kimi Code API key" }
+    // ]},
+    // { value: "zai", label: "Z.AI (GLM 4.7)", hint: "API key", options: [
+    //   { value: "zai-api-key", label: "Z.AI (GLM 4.7) API key" }
+    // ]},
+    // { value: "minimax", label: "MiniMax", hint: "M2.1 (recommended)", options: [
+    //   { value: "minimax-api", label: "MiniMax M2.1" },
+    //   { value: "minimax-api-lightning", label: "MiniMax M2.1 Lightning" }
+    // ]},
+    // { value: "synthetic", label: "Synthetic", hint: "Anthropic-compatible (multi-model)", options: [
+    //   { value: "synthetic-api-key", label: "Synthetic API key" }
+    // ]},
+    // { value: "opencode-zen", label: "OpenCode Zen", hint: "API key", options: [
+    //   { value: "opencode-zen", label: "OpenCode Zen (multi-model proxy)" }
+    // ]}
   ];
 
   res.json({
@@ -465,11 +455,6 @@ function buildOnboardArgs(payload) {
     if (flag && secret) {
       args.push(flag, secret);
     }
-
-    if (payload.authChoice === "token" && secret) {
-      // This is the Anthropics setup-token flow.
-      args.push("--token-provider", "anthropic", "--token", secret);
-    }
   }
 
   return args;
@@ -525,6 +510,31 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
     await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.auth.token", OPENCLAW_GATEWAY_TOKEN]));
     await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.bind", "loopback"]));
     await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.port", String(INTERNAL_GATEWAY_PORT)]));
+
+    // Set the default model based on the selected auth provider.
+    // The onboard command stores the API key but doesn't set the default model.
+    // Without this, the agent's default model remains an Anthropic model, causing errors
+    // when users select a different provider.
+    const modelMap = {
+      "openai-api-key": "openai/gpt-5.2-codex",
+      "apiKey": "anthropic/claude-opus-4-5",
+      // Uncomment as providers are verified:
+      // "gemini-api-key": "google/gemini-3-pro-preview",
+      // "openrouter-api-key": "openrouter/anthropic/claude-opus-4-5",
+      // "ai-gateway-api-key": "ai-gateway/anthropic/claude-opus-4-5",
+      // "moonshot-api-key": "moonshot/kimi-k2-0711-preview",
+      // "kimi-code-api-key": "moonshot/kimi-k2-0711-preview",
+      // "zai-api-key": "zai/glm-4-plus",
+      // "minimax-api": "minimax/MiniMax-M2.1",
+      // "minimax-api-lightning": "minimax/MiniMax-M2.1-Lightning",
+      // "synthetic-api-key": "synthetic/claude-opus-4-5",
+      // "opencode-zen": "opencode-zen/auto"
+    };
+    const defaultModel = modelMap[payload.authChoice];
+    if (defaultModel) {
+      const modelSet = await runCmd(OPENCLAW_NODE, clawArgs(["models", "set", defaultModel]));
+      extra += `\n[model set] ${defaultModel} exit=${modelSet.code}\n${modelSet.output || "(no output)"}`;
+    }
 
     const channelsHelp = await runCmd(OPENCLAW_NODE, clawArgs(["channels", "add", "--help"]));
     const helpText = channelsHelp.output || "";
