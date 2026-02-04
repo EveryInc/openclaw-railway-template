@@ -46,7 +46,7 @@ function resolveGatewayToken() {
 
   const generated = crypto.randomBytes(32).toString("hex");
   try {
-    fs.mkdirSync(STATE_DIR, { recursive: true });
+    ensureDirSecure(STATE_DIR);
     fs.writeFileSync(tokenPath, generated, { encoding: "utf8", mode: 0o600 });
   } catch {
     // best-effort
@@ -68,6 +68,14 @@ const OPENCLAW_NODE = process.env.OPENCLAW_NODE?.trim() || "node";
 
 function clawArgs(args) {
   return [OPENCLAW_ENTRY, ...args];
+}
+
+// Ensure a directory exists with restricted permissions (mode 700).
+// mkdirSync's mode option only applies to newly created directories,
+// so we also chmodSync to fix pre-existing ones (e.g. created with 755 by earlier deploys).
+function ensureDirSecure(dir) {
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  fs.chmodSync(dir, 0o700);
 }
 
 function configPath() {
@@ -120,8 +128,8 @@ async function startGateway() {
   if (gatewayProc) return;
   if (!isConfigured()) throw new Error("Gateway cannot start: not configured");
 
-  fs.mkdirSync(STATE_DIR, { recursive: true });
-  fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
+  ensureDirSecure(STATE_DIR);
+  ensureDirSecure(WORKSPACE_DIR);
 
   const args = [
     "gateway",
@@ -430,8 +438,8 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
       return res.json({ ok: true, output: "Already configured.\nUse Reset setup if you want to rerun onboarding.\n" });
     }
 
-  fs.mkdirSync(STATE_DIR, { recursive: true });
-  fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
+  ensureDirSecure(STATE_DIR);
+  ensureDirSecure(WORKSPACE_DIR);
 
   const payload = req.body || {};
   const onboardArgs = buildOnboardArgs(payload);
@@ -449,6 +457,8 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
     await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.auth.token", OPENCLAW_GATEWAY_TOKEN]));
     await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.bind", "loopback"]));
     await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.port", String(INTERNAL_GATEWAY_PORT)]));
+    // The wrapper reverse-proxies from loopback; tell the gateway to trust forwarded headers from it.
+    await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "--json", "gateway.trustedProxies", '["127.0.0.1"]']));
 
     // Set the default model based on the selected auth provider.
     // The onboard command stores the API key but doesn't set the default model.
@@ -647,7 +657,7 @@ app.post("/setup/api/config/raw", requireSetupAuth, async (req, res) => {
       return res.status(413).json({ ok: false, error: "Config too large" });
     }
 
-    fs.mkdirSync(STATE_DIR, { recursive: true });
+    ensureDirSecure(STATE_DIR);
 
     const p = configPath();
     // Backup
@@ -690,8 +700,8 @@ app.post("/setup/api/reset", requireSetupAuth, async (_req, res) => {
 });
 
 app.get("/setup/export", requireSetupAuth, async (_req, res) => {
-  fs.mkdirSync(STATE_DIR, { recursive: true });
-  fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
+  ensureDirSecure(STATE_DIR);
+  ensureDirSecure(WORKSPACE_DIR);
 
   res.setHeader("content-type", "application/gzip");
   res.setHeader(
