@@ -94,13 +94,10 @@
 
   document.getElementById('run').onclick = function () {
     var payload = {
-      flow: document.getElementById('flow').value,
+      flow: 'quickstart',
       authChoice: authChoiceEl.value,
       authSecret: document.getElementById('authSecret').value,
-      telegramToken: document.getElementById('telegramToken').value,
-      discordToken: document.getElementById('discordToken').value,
-      slackBotToken: document.getElementById('slackBotToken').value,
-      slackAppToken: document.getElementById('slackAppToken').value
+      telegramToken: document.getElementById('telegramToken').value
     };
 
     logEl.textContent = 'Running...\n';
