@@ -243,14 +243,9 @@
   var pairingBtn = document.getElementById('pairingApprove');
   if (pairingBtn) {
     pairingBtn.onclick = function () {
-      var channel = prompt('Enter channel (telegram or discord):');
-      if (!channel) return;
-      channel = channel.trim().toLowerCase();
-      if (channel !== 'telegram' && channel !== 'discord') {
-        alert('Channel must be "telegram" or "discord"');
-        return;
-      }
-      var code = prompt('Enter pairing code (e.g. 3EY4PUYS):');
+      // Only Telegram is enabled for now; skip the channel prompt.
+      var channel = 'telegram';
+      var code = prompt('Enter Telegram pairing code (e.g. 3EY4PUYS):');
       if (!code) return;
       logEl.textContent += '\nApproving pairing for ' + channel + '...\n';
       fetch('/setup/api/pairing/approve', {
