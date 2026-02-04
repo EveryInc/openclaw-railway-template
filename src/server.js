@@ -337,55 +337,14 @@ app.get("/setup", requireSetupAuth, (_req, res) => {
 });
 
 app.get("/setup/api/status", requireSetupAuth, async (_req, res) => {
+  // Auth groups are now inlined in setup-app.js so the dropdowns render instantly.
+  // Only fetch the version (single CLI call instead of two sequential ones).
   const version = await runCmd(OPENCLAW_NODE, clawArgs(["--version"]));
-  const channelsHelp = await runCmd(OPENCLAW_NODE, clawArgs(["channels", "add", "--help"]));
-
-  // We reuse OpenClaw's own auth-choice grouping logic indirectly by hardcoding the same group defs.
-  // Only OpenAI and Anthropic API keys are enabled for now. OAuth flows are removed because they
-  // require browser interaction which doesn't work in this headless setup.
-  // Uncomment other providers as they are verified to work.
-  const authGroups = [
-    { value: "anthropic", label: "Anthropic", hint: "Claude API key", options: [
-      { value: "apiKey", label: "Anthropic API key" }
-    ]},
-    { value: "openai", label: "OpenAI", hint: "API key", options: [
-      { value: "openai-api-key", label: "OpenAI API key" }
-    ]},
-    // Uncomment as verified:
-    // { value: "google", label: "Google", hint: "Gemini API key", options: [
-    //   { value: "gemini-api-key", label: "Google Gemini API key" }
-    // ]},
-    // { value: "openrouter", label: "OpenRouter", hint: "API key", options: [
-    //   { value: "openrouter-api-key", label: "OpenRouter API key" }
-    // ]},
-    // { value: "ai-gateway", label: "Vercel AI Gateway", hint: "API key", options: [
-    //   { value: "ai-gateway-api-key", label: "Vercel AI Gateway API key" }
-    // ]},
-    // { value: "moonshot", label: "Moonshot AI", hint: "Kimi K2 + Kimi Code", options: [
-    //   { value: "moonshot-api-key", label: "Moonshot AI API key" },
-    //   { value: "kimi-code-api-key", label: "Kimi Code API key" }
-    // ]},
-    // { value: "zai", label: "Z.AI (GLM 4.7)", hint: "API key", options: [
-    //   { value: "zai-api-key", label: "Z.AI (GLM 4.7) API key" }
-    // ]},
-    // { value: "minimax", label: "MiniMax", hint: "M2.1 (recommended)", options: [
-    //   { value: "minimax-api", label: "MiniMax M2.1" },
-    //   { value: "minimax-api-lightning", label: "MiniMax M2.1 Lightning" }
-    // ]},
-    // { value: "synthetic", label: "Synthetic", hint: "Anthropic-compatible (multi-model)", options: [
-    //   { value: "synthetic-api-key", label: "Synthetic API key" }
-    // ]},
-    // { value: "opencode-zen", label: "OpenCode Zen", hint: "API key", options: [
-    //   { value: "opencode-zen", label: "OpenCode Zen (multi-model proxy)" }
-    // ]}
-  ];
 
   res.json({
     configured: isConfigured(),
     gatewayTarget: GATEWAY_TARGET,
     openclawVersion: version.output.trim(),
-    channelsAddHelp: channelsHelp.output,
-    authGroups,
   });
 });
 
@@ -559,8 +518,10 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
 });
 
 app.get("/setup/api/debug", requireSetupAuth, async (_req, res) => {
-  const v = await runCmd(OPENCLAW_NODE, clawArgs(["--version"]));
-  const help = await runCmd(OPENCLAW_NODE, clawArgs(["channels", "add", "--help"]));
+  const [v, help] = await Promise.all([
+    runCmd(OPENCLAW_NODE, clawArgs(["--version"])),
+    runCmd(OPENCLAW_NODE, clawArgs(["channels", "add", "--help"])),
+  ]);
   res.json({
     wrapper: {
       node: process.version,

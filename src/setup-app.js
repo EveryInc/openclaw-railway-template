@@ -29,6 +29,43 @@
     statusEl.textContent = s;
   }
 
+  // Auth groups are static — render them immediately so the dropdowns don't wait on CLI calls.
+  // Uncomment providers as they are verified to work.
+  var authGroups = [
+    { value: "anthropic", label: "Anthropic", hint: "Claude API key", options: [
+      { value: "apiKey", label: "Anthropic API key" }
+    ]},
+    { value: "openai", label: "OpenAI", hint: "API key", options: [
+      { value: "openai-api-key", label: "OpenAI API key" }
+    ]}
+    // { value: "google", label: "Google", hint: "Gemini API key", options: [
+    //   { value: "gemini-api-key", label: "Google Gemini API key" }
+    // ]},
+    // { value: "openrouter", label: "OpenRouter", hint: "API key", options: [
+    //   { value: "openrouter-api-key", label: "OpenRouter API key" }
+    // ]},
+    // { value: "ai-gateway", label: "Vercel AI Gateway", hint: "API key", options: [
+    //   { value: "ai-gateway-api-key", label: "Vercel AI Gateway API key" }
+    // ]},
+    // { value: "moonshot", label: "Moonshot AI", hint: "Kimi K2 + Kimi Code", options: [
+    //   { value: "moonshot-api-key", label: "Moonshot AI API key" },
+    //   { value: "kimi-code-api-key", label: "Kimi Code API key" }
+    // ]},
+    // { value: "zai", label: "Z.AI (GLM 4.7)", hint: "API key", options: [
+    //   { value: "zai-api-key", label: "Z.AI (GLM 4.7) API key" }
+    // ]},
+    // { value: "minimax", label: "MiniMax", hint: "M2.1 (recommended)", options: [
+    //   { value: "minimax-api", label: "MiniMax M2.1" },
+    //   { value: "minimax-api-lightning", label: "MiniMax M2.1 Lightning" }
+    // ]},
+    // { value: "synthetic", label: "Synthetic", hint: "Anthropic-compatible (multi-model)", options: [
+    //   { value: "synthetic-api-key", label: "Synthetic API key" }
+    // ]},
+    // { value: "opencode-zen", label: "OpenCode Zen", hint: "API key", options: [
+    //   { value: "opencode-zen", label: "OpenCode Zen (multi-model proxy)" }
+    // ]}
+  ];
+
   function renderAuth(groups) {
     authGroupEl.innerHTML = '';
     for (var i = 0; i < groups.length; i++) {
@@ -76,11 +113,6 @@
     return httpJson('/setup/api/status').then(function (j) {
       var ver = j.openclawVersion ? (' | ' + j.openclawVersion) : '';
       setStatus((j.configured ? 'Configured - open /openclaw' : 'Not configured - run setup below') + ver);
-      renderAuth(j.authGroups || []);
-      // If channels are unsupported, surface it for debugging.
-      if (j.channelsAddHelp && j.channelsAddHelp.indexOf('telegram') === -1) {
-        logEl.textContent += '\nNote: this openclaw build does not list telegram in `channels add --help`. Telegram auto-add will be skipped.\n';
-      }
 
       // Attempt to load config editor content if present.
       if (configReloadEl && configTextEl) {
@@ -240,6 +272,9 @@
       .then(function (t) { logEl.textContent += t + '\n'; return refreshStatus(); })
       .catch(function (e) { logEl.textContent += 'Error: ' + String(e) + '\n'; });
   };
+
+  // Render auth dropdowns immediately (no API call needed).
+  renderAuth(authGroups);
 
   refreshStatus();
 })();
