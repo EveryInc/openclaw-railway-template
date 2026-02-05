@@ -144,12 +144,22 @@ async function startGateway() {
     OPENCLAW_GATEWAY_TOKEN,
   ];
 
+  // Prepend the TLS crash guard to catch a known Node.js bug where
+  // TLSSocket._handle is null during undici's TLS session reuse.
+  const tlsGuard = path.join(process.cwd(), "src", "tls-crash-guard.js");
+  const extraNodeOptions = `--require ${tlsGuard}`;
+  const existingNodeOptions = process.env.NODE_OPTIONS || "";
+  const nodeOptions = existingNodeOptions
+    ? `${existingNodeOptions} ${extraNodeOptions}`
+    : extraNodeOptions;
+
   gatewayProc = childProcess.spawn(OPENCLAW_NODE, clawArgs(args), {
     stdio: "inherit",
     env: {
       ...process.env,
       OPENCLAW_STATE_DIR: STATE_DIR,
       OPENCLAW_WORKSPACE_DIR: WORKSPACE_DIR,
+      NODE_OPTIONS: nodeOptions,
     },
   });
 
