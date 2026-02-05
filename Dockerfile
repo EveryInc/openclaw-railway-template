@@ -59,8 +59,10 @@ RUN pnpm install --no-frozen-lockfile
 #
 # Remove this patch when Node.js fixes the null guard in setSession().
 # ───────────────────────────────────────────────────────────────────────
+# The target line inside tls.connect() is indented with 8 spaces: "        session,"
+# We match that specific pattern to avoid breaking other "session," occurrences.
 RUN find /openclaw/node_modules -path '*/undici/lib/core/connect.js' -exec \
-      sed -i 's/session,/session: null, \/\/ patched: disable TLS session reuse (Node 22 setSession crash)/g' {} +
+      sed -i 's/^        session,$/        session: null, \/\/ patched: disable TLS session reuse (Node 22 crash)/' {} +
 
 RUN pnpm build
 ENV OPENCLAW_PREFER_PNPM=1
