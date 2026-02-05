@@ -33,6 +33,35 @@ RUN set -eux; \
   done
 
 RUN pnpm install --no-frozen-lockfile
+
+# ── Patch: Node.js 22 + undici TLS session crash ──────────────────────
+#
+# Node.js 22's _tls_wrap.js calls socket._handle.setSession(session) in
+# tls.connect(), but _handle can be null when the underlying TCP socket
+# closes before the TLS handshake begins. undici@7.x caches TLS sessions
+# and passes them to tls.connect() on reconnect, triggering:
+#
+#   TypeError: Cannot read properties of null (reading 'setSession')
+#       at TLSSocket.setSession (node:_tls_wrap)
+#       at Object.connect (node:_tls_wrap)
+#       at Client.connect (undici/lib/core/connect.js)
+#
+# This is a Node.js bug (no null guard in setSession), surfaced by
+# undici's session reuse. As of 2026-02-05:
+#   - undici@7.20.0 is the latest — no upstream fix available
+#   - No Node.js 22.x patch has landed
+#   - Related: https://github.com/nodejs/undici/issues/3813
+#
+# Fix: disable TLS session reuse by forcing `session: null` in undici's
+# tls.connect() call. Cost: full TLS handshake each time instead of
+# abbreviated (~1 extra RTT per new connection). This is negligible for
+# a chat gateway that makes infrequent outbound HTTPS calls.
+#
+# Remove this patch when Node.js fixes the null guard in setSession().
+# ───────────────────────────────────────────────────────────────────────
+RUN find /openclaw/node_modules -path '*/undici/lib/core/connect.js' -exec \
+      sed -i 's/session,/session: null, \/\/ patched: disable TLS session reuse (Node 22 setSession crash)/g' {} +
+
 RUN pnpm build
 ENV OPENCLAW_PREFER_PNPM=1
 RUN pnpm ui:install && pnpm ui:build
