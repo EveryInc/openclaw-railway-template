@@ -95,6 +95,7 @@ function isConfigured() {
 
 let gatewayProc = null;
 let gatewayStarting = null;
+let isShuttingDown = false;
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -161,6 +162,22 @@ async function startGateway() {
   gatewayProc.on("exit", (code, signal) => {
     console.error(`[gateway] exited code=${code} signal=${signal}`);
     gatewayProc = null;
+
+    // Auto-restart the gateway after a crash. Telegram messages arrive via
+    // long-polling, not HTTP, so we can't rely on incoming requests to trigger
+    // a restart. Without this, the gateway stays dead until the next HTTP hit.
+    if (isConfigured() && !isShuttingDown) {
+      const delayMs = 2000;
+      console.log(`[gateway] will restart in ${delayMs}ms...`);
+      setTimeout(() => {
+        if (!gatewayProc && !isShuttingDown) {
+          console.log("[gateway] restarting after crash...");
+          ensureGatewayRunning().catch((err) => {
+            console.error(`[gateway] restart failed: ${String(err)}`);
+          });
+        }
+      }, delayMs);
+    }
   });
 }
 
@@ -875,7 +892,15 @@ const server = app.listen(PORT, "0.0.0.0", () => {
   if (!SETUP_PASSWORD) {
     console.warn("[wrapper] WARNING: SETUP_PASSWORD is not set; /setup will error.");
   }
-  // Don't start gateway unless configured; proxy will ensure it starts.
+
+  // Start gateway immediately if configured. Don't wait for the first HTTP
+  // request — Telegram messages arrive via long-polling and won't trigger
+  // the proxy middleware.
+  if (isConfigured()) {
+    ensureGatewayRunning().catch((err) => {
+      console.error(`[wrapper] failed to start gateway on boot: ${String(err)}`);
+    });
+  }
 });
 
 server.on("upgrade", async (req, socket, head) => {
@@ -893,6 +918,7 @@ server.on("upgrade", async (req, socket, head) => {
 });
 
 process.on("SIGTERM", () => {
+  isShuttingDown = true;
   // Best-effort shutdown
   try {
     if (gatewayProc) gatewayProc.kill("SIGTERM");
