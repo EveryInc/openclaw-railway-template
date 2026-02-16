@@ -136,6 +136,7 @@ function isConfigured() {
 
 let gatewayProc = null;
 let gatewayStarting = null;
+let isShuttingDown = false;
 
 // Debug breadcrumbs for common Railway failures (502 / "Application failed to respond").
 let lastGatewayError = null;
@@ -212,6 +213,22 @@ async function startGateway() {
     console.error(msg);
     lastGatewayExit = { code, signal, at: new Date().toISOString() };
     gatewayProc = null;
+
+    // Auto-restart the gateway after a crash. Telegram messages arrive via
+    // long-polling, not HTTP, so we can't rely on incoming requests to trigger
+    // a restart. Without this, the gateway stays dead until the next HTTP hit.
+    if (isConfigured() && !isShuttingDown) {
+      const delayMs = 2000;
+      console.log(`[gateway] will restart in ${delayMs}ms...`);
+      setTimeout(() => {
+        if (!gatewayProc && !isShuttingDown) {
+          console.log("[gateway] restarting after crash...");
+          ensureGatewayRunning().catch((err) => {
+            console.error(`[gateway] restart failed: ${String(err)}`);
+          });
+        }
+      }, delayMs);
+    }
   });
 }
 
@@ -1421,6 +1438,7 @@ server.on("upgrade", async (req, socket, head) => {
 });
 
 process.on("SIGTERM", () => {
+  isShuttingDown = true;
   // Best-effort shutdown
   try {
     if (gatewayProc) gatewayProc.kill("SIGTERM");
